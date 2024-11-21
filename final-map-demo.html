@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Location Fact Quiz</title>
+    <!-- Load Leaflet -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      crossorigin=""
+    ></script>
+    <!-- Load Esri Leaflet -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+    <script src="https://unpkg.com/esri-leaflet-vector@4.2.5/dist/esri-leaflet-vector.js"></script>
+    <!-- Load Esri Leaflet Geocoder -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/esri-leaflet-geocoder@3.1.4/dist/esri-leaflet-geocoder.css"
+    />
+    <script src="https://unpkg.com/esri-leaflet-geocoder@3.1.4/dist/esri-leaflet-geocoder.js"></script>
+    <!-- Load TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+      body,
+      html {
+        height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Header with title */
+      header {
+        width: 90%;
+        background-color: #343a40;
+        color: white;
+        padding: 10px;
+        text-align: center;
+        font-size: 1.5em;
+        font-weight: bold;
+        border-radius: 8px;
+      }
+
+      /* Map container with window effect */
+      #map-container {
+        position: relative;
+        width: 90vw;
+        max-width: 90%;
+        height: 82vh;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        margin-top: 20px;
+        background-color: white;
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+
+      /* Directions box */
+      #directions {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        font-size: 0.9em;
+        max-width: 180px;
+        line-height: 1.4;
+        z-index: 1000;
+      }
+
+      /* Stats box styling */
+      #stats {
+        position: absolute;
+        bottom: 28px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 15px;
+        border-radius: 8px;
+        z-index: 1000;
+        text-align: center;
+        width: 80%;
+        max-width: 400px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .progress-bar {
+        width: 100%;
+        background-color: #ddd;
+        height: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 10px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 0;
+        background-color: #4caf50;
+        transition: width 0.5s ease;
+      }
+
+      .badge {
+        padding: 5px;
+        background: #ddd;
+        margin: 5px;
+        border-radius: 5px;
+        display: inline-block;
+        opacity: 0.5;
+      }
+
+      .badge.earned {
+        background: #4caf50;
+        color: white;
+        font-weight: bold;
+        opacity: 1;
+      }
+
+      #feedback {
+        font-weight: 700;
+        margin: 15px 0;
+        font-size: 20px;
+      }
+      #basemap-feedback {
+        font-size: 17px;
+      }
+
+      #newStyleButton {
+        background-color: #007bff; /* Primary blue */
+        color: #fff; /* White text */
+        font-size: 16px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: background-color 0.3s ease, transform 0.2s ease;
+      }
+
+      #newStyleButton:hover {
+        background-color: #0056b3; /* Darker blue on hover */
+        transform: scale(1.05); /* Slight zoom effect */
+      }
+    </style>
+  </head>
+  <body>
+    <header>Location Facts Quiz</header>
+    <div id="map-container">
+      <div id="map"></div>
+      <div id="directions">
+        <strong>How to Play:</strong><br />
+        Click on any location on the map to get a location fact and answer a
+        quiz question. Earn points for correct answers!
+      </div>
+      <div id="stats">
+        Points: <span id="points">0</span> | Level: <span id="level">1</span>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <textarea
+          id="userFeedback"
+          rows="2"
+          placeholder="Optional: Leave feedback on this area..."
+          style="width: 100%; margin-top: 10px; border-radius: 5px"
+        ></textarea>
+        <button onclick="analyzeSentiment()" style="margin-top: 10px">
+          Analyze Feedback
+        </button>
+        <div id="feedback"></div>
+        <div id="basemap-feedback"></div>
+        <button id="newStyleButton" style="display: none; margin-top: 10px">
+          See New Basemap Style
+        </button>
+      </div>
+    </div>
+    <script>
+      const accessToken =
+        'YOUR _KEY' // Replace with your ArcGIS token
+      const azureKey =
+        'YOUR _KEY'
+      const openaiApiKey =
+        'YOUR _KEY' // Replace with your OpenAI API key
+      let points = 0,
+        level = 1,
+        userPerformance = 0.5,
+        threshold = 2,
+        model,
+        correctAnswer,
+        theCorrectAnswer,
+        lastClickedLatLng = null,
+        startTime = null
+      const competitors = [
+        { name: 'Alice', feedback: 'This place is stunning!' },
+        { name: 'Bob', feedback: 'It could use better maintenance.' },
+        { name: 'Charlie', feedback: 'I love the history here.' }
+      ]
+
+      const map = L.map('map').setView([37.566666, -77.454834], 13)
+      L.esri.Vector.vectorBasemapLayer('arcgis/community', {
+        token: accessToken
+      }).addTo(map)
+      const layerGroup = L.layerGroup().addTo(map)
+
+      async function fetchFactAndQuiz(locationName) {
+        const level = ['easy', 'medium', 'hard'][currentDifficulty]
+        const factResponse = await fetchOpenAI(
+          `Provide an interesting or lesser-known fact about the area near ${locationName}. This fact should not directly relate to whether the location is on the National Register of Historic Places or any similar topic.`
+        )
+        const fact = factResponse.choices[0]?.message?.content
+
+        // Fetch a quiz question based on difficulty level
+        const quizResponse = await fetchOpenAI(
+          `Create a ${level} true or false quiz question about ${locationName}. Ensure this question is challenging and unrelated to the fact previously mentioned. Format: "Question: [question] Answer: [true/false]".`
+        )
+        const quizContent = quizResponse.choices[0]?.message?.content
+        const match = quizContent.match(
+          /^Question:\s*(.+?)\s*Answer:\s*(True|False)\.?$/i
+        )
+        const question = match ? match[1].trim() : 'Error generating question.'
+        const correctAnswerText = match
+          ? match[2].trim().toLowerCase()
+          : 'false'
+        const theCorrectAnswer = correctAnswerText === 'true'
+        console.log(theCorrectAnswer)
+        return {
+          fact,
+          question,
+          theCorrectAnswer: theCorrectAnswer !== null ? theCorrectAnswer : false
+        }
+      }
+
+      async function fetchOpenAI(prompt) {
+        return fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openaiApiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Provide factual and verified information. Limit to 35 words.'
+              },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 80,
+            temperature: 0.2
+          })
+        }).then(response => response.json())
+      }
+
+      const tfModel = tf.sequential()
+      tfModel.add(
+        tf.layers.dense({ units: 20, activation: 'relu', inputShape: [3] })
+      )
+      tfModel.add(tf.layers.dense({ units: 3, activation: 'softmax' }))
+      tfModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' })
+
+      const trainX = tf.tensor2d([
+        // Correctness, Response Time (seconds), Current Difficulty
+        [1, 2.0, 0], // Easy, correct and fast
+        [1, 3.0, 0], // Easy, correct but slow
+        [0, 4.0, 0], // Easy, incorrect
+        [1, 3.0, 1], // Medium, correct and fast
+        [1, 4.5, 1], // Medium, correct but slow
+        [0, 5.0, 1], // Medium, incorrect
+        [1, 5.0, 2], // Hard, correct and fast
+        [1, 6.5, 2], // Hard, correct but slow
+        [0, 7.0, 2], // Hard, incorrect and slow
+        [0, 4.5, 2] // Hard, incorrect but fast
+      ])
+      const trainY = tf.tensor2d([
+        // Output Probabilities: [Easy, Medium, Hard]
+        [0, 1, 0], // Move to Medium (Easy → Medium, correct and fast)
+        [1, 0, 0], // Stay at Easy (Easy → Easy, correct but slow)
+        [1, 0, 0], // Stay at Easy (Easy → Easy, incorrect)
+        [0, 0, 1], // Move to Hard (Medium → Hard, correct and fast)
+        [0, 1, 0], // Stay at Medium (Medium → Medium, correct but slow)
+        [1, 0, 0], // Move to Easy (Medium → Easy, incorrect)
+        [0, 0, 1], // Stay at Hard (Hard → Hard, correct and fast)
+        [0, 0, 1], // Stay at Hard (Hard → Hard, correct but slow)
+        [1, 0, 0], // Move to Easy (Hard → Easy, incorrect and slow)
+        [0, 1, 0] // Move to Medium (Hard → Medium, incorrect but fast)
+      ])
+
+      async function trainModel() {
+        console.log('Training TensorFlow model...')
+        await tfModel.fit(trainX, trainY, {
+          epochs: 500,
+          callbacks: {
+            onEpochEnd: (epoch, logs) => {
+              console.log(`Epoch: ${epoch + 1}, Loss: ${logs.loss}`)
+            }
+          }
+        })
+        console.log('Model training complete.')
+      }
+      trainModel()
+
+      let currentDifficulty = 0 // 0: Easy, 1: Medium, 2: Hard
+
+      function adjustDifficulty(isCorrect, responseTime) {
+        const input = tf.tensor2d([
+          [isCorrect ? 1 : 0, responseTime, currentDifficulty]
+        ])
+        const prediction = tfModel.predict(input)
+        const probabilities = Array.from(prediction.dataSync())
+        currentDifficulty = prediction.argMax(-1).dataSync()[0] // Update difficulty
+        return {
+          difficulty: ['Easy', 'Medium', 'Hard'][currentDifficulty],
+          probabilities
+        }
+      }
+
+      async function analyzeSimilarity(userText) {
+        const API_URL =
+          'https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2'
+        const API_TOKEN = 'YOUR_KEY' // Replace with your Hugging Face API token
+
+        const competitors = [
+          { name: 'Alice', feedback: 'This place is stunning!' },
+          { name: 'Bob', feedback: 'It could use better maintenance.' },
+          { name: 'Charlie', feedback: 'I love the history here.' }
+        ]
+
+        const competitorFeedback = competitors.map(c => c.feedback)
+
+        try {
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${API_TOKEN}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              inputs: {
+                source_sentence: userText,
+                sentences: competitorFeedback
+              }
+            })
+          })
+
+          if (!response.ok) {
+            console.error('Hugging Face API Error:', response.statusText)
+            return null
+          }
+
+          const similarityScores = await response.json()
+          return competitors.map((competitor, index) => ({
+            name: competitor.name,
+            feedback: competitor.feedback,
+            similarity: similarityScores[index].toFixed(2)
+          }))
+        } catch (error) {
+          console.error('Error calling Hugging Face API:', error)
+          return null
+        }
+      }
+
+      async function analyzeSentiment() {
+        const userText = document.getElementById('userFeedback').value.trim()
+        const feedbackElement = document.getElementById('feedback')
+        const basemapFeedback = document.getElementById('basemap-feedback')
+        const newStyleButton = document.getElementById('newStyleButton')
+
+        if (!userText) {
+          alert('Please provide feedback before analyzing sentiment!')
+          return
+        }
+
+        // Azure Sentiment Analysis
+        const response = await fetch(
+          'https://eastus.api.cognitive.microsoft.com/text/analytics/v3.0/sentiment',
+          {
+            method: 'POST',
+            headers: {
+              'Ocp-Apim-Subscription-Key': azureKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              documents: [{ id: '1', language: 'en', text: userText }]
+            })
+          }
+        )
+        const result = await response.json()
+        const sentiment = result.documents[0]?.sentiment || 'neutral'
+        feedbackElement.innerHTML = `<p><strong>Sentiment:</strong> ${sentiment}</p>`
+
+        // Hugging Face Sentence Similarity
+        const similarityResults = await analyzeSimilarity(userText)
+
+        if (similarityResults) {
+          let leaderboard = `
+            <p><strong>Other players:</strong></p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 7px;">
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ccc; padding: 8px; text-align: left;">Name</th>
+                  <th style="border: 1px solid #ccc; padding: 8px; text-align: left;">Feedback</th>
+                  <th style="border: 1px solid #ccc; padding: 8px; text-align: left;">Similarity Score</th>
+                </tr>
+              </thead>
+              <tbody>`
+
+          similarityResults.sort((a, b) => b.similarity - a.similarity) // Sort by similarity
+          similarityResults.forEach(({ name, feedback, similarity }) => {
+            leaderboard += `
+              <tr>
+                <td style="border: 1px solid #ccc; padding: 5px;">${name}</td>
+                <td style="border: 1px solid #ccc; padding: 5px;">${feedback}</td>
+                <td style="border: 1px solid #ccc; padding: 5px;">${similarity}</td>
+                <td style="border: 1px solid #ccc; padding: 5px;">
+                  <button onclick="challengeCompetitor('${name}')">Challenge</button>
+                </td>
+              </tr>`
+          })
+
+          leaderboard += `
+              </tbody>
+            </table>`
+
+          feedbackElement.innerHTML += leaderboard
+        } else {
+          feedbackElement.innerHTML += '<p>Could not analyze similarity.</p>'
+        }
+
+        // Adjust Basemap based on Sentiment
+        if (sentiment === 'negative') {
+          basemapFeedback.textContent =
+            "Let's turn that frown upside down. Want to see a fun basemap style?"
+          newStyleButton.style.display = 'inline-block'
+          newStyleButton.onclick = () =>
+            changeBasemapStyle('456d1df3810e482b8abcb2aa0440d6ac')
+        } else if (sentiment === 'positive') {
+          basemapFeedback.textContent =
+            'Having a bit too much fun, maybe? Want to see something spooky?'
+          newStyleButton.style.display = 'inline-block'
+          newStyleButton.onclick = () =>
+            changeBasemapStyle('f4331849dcac4e00ac2b047d9c716907')
+        } else {
+          basemapFeedback.textContent =
+            'Not really feeling it, huh? Want to see a boring style?'
+          newStyleButton.style.display = 'inline-block'
+          newStyleButton.onclick = () => changeBasemapStyle('arcgis/light-gray')
+        }
+      }
+
+      function challengeCompetitor(name) {
+        alert(`You've challenged ${name}! Show them what you've got!`)
+      }
+
+      function changeBasemapStyle(styleId) {
+        map.eachLayer(function (layer) {
+          if (layer.options.token) {
+            map.removeLayer(layer)
+          }
+        })
+        L.esri.Vector.vectorBasemapLayer(styleId, {
+          token: accessToken
+        }).addTo(map)
+        document.getElementById('newStyleButton').style.display = 'none'
+      }
+
+      async function generatePopupContent(locationName, latlng) {
+        const { fact, question, theCorrectAnswer } = await fetchFactAndQuiz(
+          locationName
+        )
+        startTime = Date.now() // Start the timer when the question is displayed
+        const container = document.createElement('div')
+        container.innerHTML = `
+          <b>${locationName}</b>
+          <p>${fact}</p>
+          <p>${question}</p>
+          <button onclick="submitAnswer(true, ${theCorrectAnswer})">True</button>
+          <button onclick="submitAnswer(false, ${theCorrectAnswer})">False</button>
+          <hr />
+          <textarea id="place-feedback-${latlng.lat}-${latlng.lng}" 
+                    placeholder="Leave feedback for this place..." 
+                    style="width: 100%; margin-top: 10px; border-radius: 5px"></textarea>
+          <button onclick="analyzeSentimentForLocation(${latlng.lat}, ${
+          latlng.lng
+        })" 
+                  style="margin-top: 10px">Submit Feedback</button>
+          <p id="place-feedback-result-${latlng.lat}-${latlng.lng}"></p>
+          <p>Current Difficulty: ${
+            ['Easy', 'Medium', 'Hard'][currentDifficulty]
+          }</p>
+        `
+        return container
+      }
+
+      const happyIconUrl = 'https://openmoji.org/data/color/svg/1F60A.svg'
+      const neutralIconUrl = 'https://openmoji.org/data/color/svg/1F610.svg'
+      const sadIconUrl = 'https://openmoji.org/data/color/svg/1F622.svg'
+      const sentimentLayerGroup = L.layerGroup().addTo(map)
+
+      async function analyzeSentimentForLocation(lat, lng) {
+        const feedbackInput = document.getElementById(
+          `place-feedback-${lat}-${lng}`
+        ).value
+        const feedbackResult = document.getElementById(
+          `place-feedback-result-${lat}-${lng}`
+        )
+
+        const response = await fetch(
+          'https://eastus.api.cognitive.microsoft.com/text/analytics/v3.0/sentiment',
+          {
+            method: 'POST',
+            headers: {
+              'Ocp-Apim-Subscription-Key': azureKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              documents: [{ id: '1', language: 'en', text: feedbackInput }]
+            })
+          }
+        )
+
+        const result = await response.json()
+        const sentiment = result.documents[0]?.sentiment || 'neutral'
+        feedbackResult.textContent = `Sentiment: ${sentiment}`
+        const iconUrl =
+          sentiment === 'positive'
+            ? happyIconUrl
+            : sentiment === 'negative'
+            ? sadIconUrl
+            : neutralIconUrl
+        const sentimentIcon = L.icon({
+          iconUrl: iconUrl,
+          iconSize: [55, 55]
+        })
+        L.marker([lat, lng], { icon: sentimentIcon }).addTo(sentimentLayerGroup)
+      }
+
+      map.on('click', async e => {
+        layerGroup.clearLayers()
+        const latlng = e.latlng
+        lastClickedLatLng = latlng
+        L.esri.Geocoding.reverseGeocode({ apikey: accessToken })
+          .latlng(latlng)
+          .run(async (error, result) => {
+            if (error) return
+            const locationName = result.address.Match_addr
+            const marker = L.marker(latlng).addTo(layerGroup)
+            const popupContent = await generatePopupContent(
+              locationName,
+              latlng
+            )
+            marker.bindPopup(popupContent).openPopup()
+          })
+      })
+
+      function submitAnswer(userAnswer, theCorrectAnswer) {
+        const responseTime = (Date.now() - startTime) / 1000 // Calculate time elapsed since question display
+        const isCorrect = userAnswer === theCorrectAnswer // Compare user's answer with the correct answer
+
+        const { difficulty, probabilities } = adjustDifficulty(
+          isCorrect,
+          responseTime
+        )
+
+        // Update points and feedback
+        updatePoints(isCorrect ? 10 : 0)
+        alert(
+          isCorrect
+            ? `Correct! 🎉\nNew Difficulty: ${difficulty}`
+            : `Incorrect. The correct answer was: ${theCorrectAnswer}\nNew Difficulty: ${difficulty}`
+        )
+        console.log('Response Time:', responseTime, 'seconds')
+        console.log('Current Difficulty:', currentDifficulty)
+        console.log('User Answer:', userAnswer)
+        console.log('Prediction Probabilities:', probabilities)
+      }
+
+      function updatePoints(additionalPoints) {
+        points += additionalPoints
+        document.getElementById('points').textContent = points
+
+        // Calculate progress percentage
+        const pointsForNextLevel = level * 50
+        const progressPercentage = Math.min(
+          (points / pointsForNextLevel) * 100,
+          100
+        )
+
+        // Update the progress bar width
+        const progressFill = document.getElementById('progress-fill')
+        progressFill.style.width = `${progressPercentage}%`
+
+        // Check if the user levels up
+        if (points >= pointsForNextLevel) {
+          level++
+          document.getElementById('level').textContent = level
+          alert(`You've reached Level ${level}!`)
+        }
+      }
+    </script>
+  </body>
+</html>
