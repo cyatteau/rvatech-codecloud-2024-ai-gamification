@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure-Powered Response Form</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: 'Arial', sans-serif;
+        background: linear-gradient(to bottom, #e0f7fa, #f0f4f8);
+      }
+
+      #app {
+        width: 100%;
+        max-width: 600px;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.2);
+        background: linear-gradient(145deg, #ffffff, #f0f4f8);
+        text-align: center;
+        margin-top: -50px;
+        transition: all 0.3s ease;
+      }
+
+      #app:hover {
+        box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.25);
+      }
+
+      h2 {
+        color: #0077b6;
+        font-size: 2.2rem;
+        margin-bottom: 25px;
+      }
+
+      textarea {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #d1d5db;
+        border-radius: 10px;
+        resize: none;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+        background-color: #f9fafb;
+        transition: all 0.3s ease;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #0077b6;
+        box-shadow: 0 0 10px rgba(0, 119, 182, 0.6);
+        background-color: #eef7fc;
+      }
+
+      button {
+        padding: 15px 30px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(90deg, #0077b6, #48cae4);
+        color: #ffffff;
+        font-size: 1.5rem;
+        cursor: pointer;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      button:hover {
+        transform: scale(1.1);
+        box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.3);
+      }
+
+      #feedback {
+        margin-top: 25px;
+      }
+
+      #sentiment {
+        font-size: 1.6rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #1d3557;
+      }
+
+      #responseElement {
+        font-size: 1.3rem;
+        color: #4a5568;
+        margin-top: 10px;
+      }
+
+      #progressContainer {
+        width: 100%;
+        background: #d1d5db;
+        margin-top: 25px;
+        height: 20px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      #progressBar {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(to right, #48cae4, #0077b6);
+        transition: width 0.5s ease-in-out;
+        border-radius: 12px;
+      }
+
+      #teaserMessage {
+        margin-top: 10px;
+        font-size: 1.4rem;
+        color: #4a5568;
+        transition: all 0.3s ease-in-out;
+        font-weight: bold;
+      }
+
+      #badgeMessage {
+        margin-top: 15px;
+        font-size: 1.6rem;
+        color: #0077b6;
+        font-weight: bold;
+      }
+
+      #badgeReward {
+        margin-top: 15px;
+      }
+
+      .badge {
+        padding: 12px 25px;
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(90deg, #38a169, #2f855a);
+        border-radius: 25px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        display: inline-block;
+        animation: pop-in 1s ease-in-out;
+        margin-bottom: 15px;
+      }
+
+      #locationMessage {
+        font-size: 1.2rem;
+        color: #4a5568;
+        margin-bottom: 10px;
+        font-weight: 500;
+        text-align: left;
+      }
+
+      @keyframes pop-in {
+        0% {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      #searchContainer {
+        margin-top: 25px;
+        text-align: center;
+      }
+
+      #searchInput {
+        width: 250px;
+        padding: 12px;
+        font-size: 1rem;
+        border: 2px solid #d1d5db;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+      }
+
+      #searchInput:focus {
+        outline: none;
+        border-color: #0077b6;
+        box-shadow: 0 0 10px rgba(0, 119, 182, 0.5);
+        background-color: #eef7fc;
+      }
+
+      #suggestionsList {
+        list-style-type: none;
+        padding: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15);
+        position: absolute;
+        z-index: 1000;
+        width: 250px;
+      }
+
+      #suggestionsList li {
+        padding: 10px 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        font-size: 1rem;
+        color: #4a5568;
+        transition: background-color 0.3s ease;
+      }
+
+      #suggestionsList li:hover {
+        background-color: #eaf6fc;
+        color: #1d3557;
+      }
+      #translated-message {
+        margin-top: 10px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h2>How was your experience?</h2>
+      <textarea id="userInput" placeholder="Share your thoughts..."></textarea>
+      <button onclick="analyzeSentiment()">Submit Feedback</button>
+      <div id="feedback">
+        <p id="sentiment"></p>
+        <p id="responseElement"></p>
+      </div>
+      <!-- <div id="progressContainer">
+        <div id="progressBar"></div>
+      </div> -->
+      <div id="teaserMessage"></div>
+      <p id="badgeMessage"></p>
+      <div id="badgeReward"></div>
+      <!-- <div id="searchContainer">
+        <p id="locationMessage">
+          Enter your location to translate your feedback into the local
+          language!
+        </p>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search for a location..."
+          oninput="suggestLocations()"
+        />
+        <ul id="suggestionsList"></ul>
+      </div> -->
+      <div id="translated-message"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script>
+      async function analyzeSentiment() {
+        const userText = document.getElementById('userInput').value
+        const AZURE_REGION = 'eastus' // Replace with your region
+        const AZURE_API_VERSION = 'v3.0' // Replace with the version you're using
+
+        const response = await fetch(
+          `https://${AZURE_REGION}.api.cognitive.microsoft.com/text/analytics/${AZURE_API_VERSION}/sentiment`,
+          {
+            method: 'POST',
+            headers: {
+              'Ocp-Apim-Subscription-Key': 'YOUR_KEY', // Replace with your Azure AI Language key
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              documents: [{ id: '1', language: 'en', text: userText }]
+            })
+          }
+        )
+
+        const results = (await response.json()).documents[0]
+        document.getElementById(
+          'sentiment'
+        ).textContent = `Overall sentiment: ${results.sentiment}`
+
+        ////MULTI-LINE ANALYSIS
+        // const feedback = document.getElementById('responseElement')
+        // feedback.querySelectorAll('.sentence-feedback').forEach(el => el.remove())
+        // results.sentences.forEach((sentence, index) => {
+        //   const sentenceFeedback = document.createElement('p')
+        //   sentenceFeedback.textContent = `Sentence ${index + 1} Sentiment: ${sentence.sentiment}`
+        //   sentenceFeedback.classList.add('sentence-feedback')
+        //   feedback.appendChild(sentenceFeedback)
+        // })
+
+        ////PERSONALIZATION
+        //   const responses = {
+        //     positive: "😃 Glad you enjoyed it! I'll tailor future suggestions to similar items.",
+        //     negative: "😟 Sorry to hear that! I'll exclude similar items from future suggestions.",
+        //     neutral: "👌 OK! I'll refine future suggestions to improve your experience."
+        //   }
+        //   document.getElementById('responseElement').textContent = responses[results.sentiment]
+
+        //// GAMIFICATION - PROGRESS
+        // const progress = Math.min(++reviewCount / 3, 1) * 100;
+        // document.getElementById("progressBar").style.width = `${progress}%`;
+        // document.getElementById("teaserMessage").textContent =
+        //     reviewCount < 3
+        //     ? ["You're off to a great start! 🌟", "Keep going! Something fun is coming... 🎉"][reviewCount - 1]
+        //     : "";
+        // if (reviewCount === 3) {
+        //     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ["#0077b6", "#48cae4", "#38a169"] });
+        //     document.getElementById("badgeMessage").textContent =
+        //     "🎉 Excellent work! Your reviews are helping create a smarter experience.";
+        // }
+
+        //// AI TRANSLATION + GAMIFICATION - BADGE
+        //   const countryCode = localStorage.getItem('selectedCountryCode')
+        //   const languageCode = countryCodeToLanguage[countryCode] || 'en'
+        //   if (languageCode !== 'en') {
+        //     const translateConfirmation = confirm(`Translate your feedback into ${languageCode.toUpperCase()}?`)
+        //     if (translateConfirmation) {
+        //       const translatedFeedback = await translateFeedback(userText,languageCode)
+        //       document.getElementById('translated-message').textContent = `Translated Feedback (${languageCode.toUpperCase()}): ${translatedFeedback}`
+        //       document.getElementById('badgeReward').innerHTML = `<div class="badge">🌟 Translation Achiever</div>`
+        //     }
+        //   }
+      }
+
+      // TRANSLATOR
+      async function translateFeedback(feedbackText, targetLanguage) {
+        const azureTranslatorEndpoint =
+          'https://api.cognitive.microsofttranslator.com' //Replace with your Azure AI Translator key
+        const response = await fetch(
+          `${azureTranslatorEndpoint}/translate?api-version=3.0&to=${targetLanguage}`,
+          {
+            method: 'POST',
+            headers: {
+              'Ocp-Apim-Subscription-Key': 'YOUR_KEY',
+              'Ocp-Apim-Subscription-Region': 'eastus', // Replace with your Azure region if different
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify([{ Text: feedbackText }])
+          }
+        )
+        const translationResults = await response.json()
+        return translationResults[0]?.translations[0]?.text || feedbackText
+      }
+
+      const countryCodeToLanguage = {
+        USA: 'en', // English
+        FRA: 'fr', // French
+        ESP: 'es', // Spanish
+        DEU: 'de', // German
+        ITA: 'it', // Italian
+        JPN: 'ja', // Japanese
+        CHN: 'zh', // Chinese
+        IND: 'hi', // Hindi
+        BRA: 'pt' // Portuguese
+      }
+
+      async function suggestLocations() {
+        const arcgisApiKey = 'YOUR_ARCGIS_KEY' // Go to location.arcgis.com to get a free key
+        const searchInput = document.getElementById('searchInput')
+        const suggestionsList = document.getElementById('suggestionsList')
+        suggestionsList.innerHTML = ''
+        const inputRect = searchInput.getBoundingClientRect()
+        suggestionsList.style.top = `${inputRect.bottom + window.scrollY}px`
+        suggestionsList.style.left = `${inputRect.left + window.scrollX}px`
+
+        const response = await fetch(
+          `https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?text=${encodeURIComponent(
+            searchInput.value.trim()
+          )}&f=json&token=${arcgisApiKey}`
+        )
+
+        const data = await response.json()
+        const suggestions = data.suggestions || []
+
+        suggestions.forEach(suggestion => {
+          const listItem = document.createElement('li')
+          listItem.textContent = suggestion.text
+          listItem.onclick = async () => {
+            searchInput.value = suggestion.text
+            suggestionsList.innerHTML = ''
+            const geocodeResponse = await fetch(
+              `https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=pjson&outFields=*&singleLine=${encodeURIComponent(
+                suggestion.text
+              )}&f=json&token=${arcgisApiKey}`
+            )
+            const geocodeData = await geocodeResponse.json()
+            const countryCode = geocodeData.candidates[0].attributes.Country
+            localStorage.setItem('selectedCountryCode', countryCode)
+            const language = countryCodeToLanguage[countryCode] || 'Unknown'
+          }
+          suggestionsList.appendChild(listItem)
+        })
+      }
+
+      let reviewCount = 0
+    </script>
+  </body>
+</html>
