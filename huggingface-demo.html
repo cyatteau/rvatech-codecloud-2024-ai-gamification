@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Pairing with Hugging Face</title>
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.24/esri/themes/light/main.css"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Roboto', Arial, sans-serif;
+        background-color: #f4f6f9;
+        color: #333;
+        line-height: 1.6;
+        height: 100vh; /* Full viewport height */
+        display: flex;
+        flex-direction: column;
+      }
+
+      h1 {
+        background-color: #007bff;
+        color: white;
+        padding: 10px 0;
+        text-align: center;
+        font-size: 1.8em;
+        flex-shrink: 0; /* Prevent header from growing */
+      }
+
+      main {
+        flex: 1; /* Allow main section to grow and fill available space */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+      }
+
+      form {
+        width: 100%;
+        max-width: 800px;
+        margin-bottom: 20px;
+      }
+
+      textarea {
+        width: 100%;
+        padding: 10px;
+        font-size: 1.2em;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+      }
+
+      button {
+        padding: 10px 20px;
+        font-size: 1em;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+        float: right;
+        margin-top: 5px;
+      }
+
+      button:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
+      }
+
+      .result-map {
+        display: flex;
+        gap: 20px;
+        width: 85%; /* Wider middle section */
+        margin: 0px auto;
+        align-items: flex-start;
+        height: 65%; /* Ensure middle section uses a consistent portion of height */
+      }
+
+      #result {
+        flex: 1;
+        padding: 20px;
+        background-color: white;
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        overflow-y: auto; /* Allows scrolling for long content */
+      }
+
+      #map {
+        flex: 1;
+        height: 90%; /* Match height with result section */
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      li {
+        margin: 10px 0;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 5px 7px;
+        margin-top: 10px;
+        font-size: 0.85em;
+        font-weight: bold;
+        text-transform: uppercase; /* Make text uppercase for a badge look */
+        letter-spacing: 1px; /* Add letter spacing for a polished appearance */
+        color: white; /* White text for contrast */
+        background-color: #555; /* Neutral background */
+        border-radius: 20px; /* Make it pill-shaped */
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2); /* Add a shadow for depth */
+        text-align: center;
+        border: 2px solid transparent; /* Optional border */
+      }
+
+      .popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        text-align: center;
+        display: none;
+        z-index: 1000;
+        font-size: 1.2em;
+      }
+
+      .popup.show {
+        display: block;
+      }
+
+      .highlighted {
+        background-color: #f9e3ca; /* Light yellow background */
+        border: 2px solid #f58f13; /* Bold yellow border */
+        padding: 12px; /* Slightly increase padding for emphasis */
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+      }
+
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 999;
+      }
+
+      .overlay.show {
+        display: block;
+      }
+
+      footer {
+        background-color: #f4f6f9;
+        text-align: center;
+        font-size: 0.8em;
+        color: #555;
+        padding: 10px 0;
+        border-top: 1px solid #ddd;
+        flex-shrink: 0; /* Prevent footer from growing */
+      }
+      .hidden {
+        display: none;
+      }
+
+      #footer-content {
+        overflow: hidden;
+      }
+
+      #footer-content.visible {
+        display: block;
+      }
+
+      #toggle-footer {
+        margin-right: 15px;
+      }
+
+      .formula {
+        font-family: 'Courier New', Courier, monospace;
+        background: #f9f9f9;
+        padding: 5px 10px;
+        border-radius: 5px;
+        display: inline-block;
+      }
+      #result {
+        display: none; /* Hide by default */
+      }
+      #overlay-message {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #555;
+        font-size: 1.2em;
+        text-align: center;
+        border-radius: 8px;
+        z-index: 10; /* Ensure it is above the other elements */
+      }
+
+      .result-map {
+        position: relative; /* To position overlay-message */
+      }
+
+      .star {
+        width: 30px;
+        height: 30px;
+        background: url('empty-star.png') no-repeat center center;
+        background-size: contain;
+        position: relative;
+        cursor: pointer;
+      }
+
+      .star.filled {
+        background: url('filled-star.png') no-repeat center center;
+        background-size: contain;
+      }
+
+      .star:hover {
+        transform: scale(1.2); /* Optional: Add hover animation */
+      }
+
+      .rating {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        margin-top: 10px;
+      }
+
+      .rating.disabled .star {
+        pointer-events: none; /* Disable interaction */
+        opacity: 0.5; /* Make it look inactive */
+        cursor: not-allowed;
+      }
+
+      .rating:not(.disabled) .star {
+        pointer-events: auto; /* Enable interaction */
+        opacity: 1;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AI Game Pairing</h1>
+    <main>
+      <h3><em>Discover your perfect gaming match!</em></h3>
+      <form id="pairing-form">
+        <textarea
+          id="description"
+          rows="4"
+          cols="50"
+          placeholder="Describe your play style (e.g., I enjoy strategic games)"
+        ></textarea>
+        <br />
+        <button type="button" onclick="findPair()">Find Match</button>
+      </form>
+    </main>
+    <div class="result-map">
+      <div id="overlay-message">
+        Describe your style above and click "Find Match" to see results.
+      </div>
+      <div id="result"></div>
+
+      <div id="map"></div>
+    </div>
+    <footer>
+      <h3>How AI Calculates Matches</h3>
+      <button id="toggle-footer" onclick="toggleFooter()">Show Details</button>
+      <div id="footer-content" class="hidden">
+        <p>
+          The model uses a <strong>sentence transformer</strong> to encode text
+          into vector embeddings. Matches are scored using the
+          <strong>cosine similarity</strong> formula:
+        </p>
+        <p>
+          <span class="formula">
+            cosine_similarity(A, B) = (A · B) / (||A|| ||B||)
+          </span>
+        </p>
+        <p>
+          Here, <strong>A</strong> and <strong>B</strong> are vectors
+          representing the descriptions, <strong>·</strong> is the dot product,
+          and <strong>||A||</strong> is the magnitude of vector A.
+        </p>
+      </div>
+    </footer>
+    <div id="overlay" class="overlay"></div>
+    <div id="popup" class="popup">
+      <p id="popup-message"></p>
+      <!-- Make sure this element is present -->
+      <button onclick="closePopup()">Close</button>
+    </div>
+
+    <script src="https://js.arcgis.com/4.24/"></script>
+    <script src="/profiles.js"></script>
+    <script>
+      const API_URL =
+        'https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2'
+      const API_TOKEN = 'YOUR_KEY'
+
+      let map, view
+
+      const profiles = [
+        {
+          name: 'Taylor',
+          description: 'Beginner player, enjoys casual challenges.',
+          badge: 'Casual Enthusiast',
+          longitude: -95.7129,
+          latitude: 37.0902
+        },
+        {
+          name: 'Jordan',
+          description: 'Intermediate player, loves strategic games.',
+          badge: 'Strategist',
+          longitude: -80.1918,
+          latitude: 25.7617
+        },
+        {
+          name: 'Alex',
+          description: 'Advanced player, competitive mindset.',
+          badge: 'Challenger',
+          longitude: -122.4194,
+          latitude: 37.7749
+        },
+        {
+          name: 'Chris',
+          description: 'Intermediate player, prefers team collaboration.',
+          badge: 'Team Builder',
+          longitude: -77.0369,
+          latitude: 38.9072
+        },
+        {
+          name: 'Morgan',
+          description: 'Advanced player, excels at fast-paced games.',
+          badge: 'Speed Demon',
+          longitude: -118.2437,
+          latitude: 34.0522
+        },
+        {
+          name: 'Riley',
+          description: 'Casual player, enjoys puzzle-solving games.',
+          badge: 'Puzzle Master',
+          longitude: -71.0589,
+          latitude: 42.3601
+        },
+        {
+          name: 'Jordan A.',
+          description: 'Competitive player, loves tactical challenges.',
+          badge: 'Tactician',
+          longitude: -104.9903,
+          latitude: 39.7392
+        },
+        {
+          name: 'Jamie',
+          description: 'Adventurous player, enjoys exploring open worlds.',
+          badge: 'Explorer',
+          longitude: -87.6298,
+          latitude: 41.8781
+        },
+        {
+          name: 'Pat',
+          description: 'Strategic player, enjoys turn-based games.',
+          badge: 'Turn-Based Pro',
+          longitude: -112.074,
+          latitude: 33.4484
+        },
+        {
+          name: 'Casey',
+          description: 'Relaxed player, prefers soothing, creative games.',
+          badge: 'Creative Soul',
+          longitude: -96.797,
+          latitude: 32.7767
+        },
+        {
+          name: 'Taylor M.',
+          description: 'Expert player, enjoys role-playing games.',
+          badge: 'Role-Playing Guru',
+          longitude: -93.265,
+          latitude: 44.9778
+        },
+        {
+          name: 'Drew',
+          description: 'Chill player, prefers sandbox-style games.',
+          badge: 'Sandbox Enthusiast',
+          longitude: -105.2789,
+          latitude: 40.015
+        },
+        {
+          name: 'Skyler',
+          description: 'Social player, loves multiplayer games.',
+          badge: 'Multiplayer Maven',
+          longitude: -84.388,
+          latitude: 33.749
+        },
+        {
+          name: 'Bailey',
+          description: 'Competitive player, loves racing games.',
+          badge: 'Speed Racer',
+          longitude: -115.1398,
+          latitude: 36.1699
+        },
+        {
+          name: 'Hunter',
+          description: 'Intermediate player, enjoys survival challenges.',
+          badge: 'Survivor',
+          longitude: -122.6765,
+          latitude: 45.523
+        },
+        {
+          name: 'Cameron',
+          description: 'Relaxed player, enjoys life simulation games.',
+          badge: 'Life Simulator Fan',
+          longitude: -81.3792,
+          latitude: 28.5383
+        },
+        {
+          name: 'Quinn',
+          description: 'Advanced player, enjoys FPS games.',
+          badge: 'Sharpshooter',
+          longitude: -82.4572,
+          latitude: 27.9506
+        },
+        {
+          name: 'Reese',
+          description: 'Beginner player, loves casual word games.',
+          badge: 'Word Wizard',
+          longitude: -97.7431,
+          latitude: 30.2672
+        },
+        {
+          name: 'Logan',
+          description: 'Intermediate player, enjoys tower defense games.',
+          badge: 'Defender',
+          longitude: -94.5786,
+          latitude: 39.0997
+        },
+        {
+          name: 'Jesse',
+          description: 'Adventurous player, loves mystery-solving games.',
+          badge: 'Detective',
+          longitude: -75.1652,
+          latitude: 39.9526
+        },
+        {
+          name: 'Taylor L.',
+          description: 'Chill player, enjoys farming simulators.',
+          badge: 'Farmer Extraordinaire',
+          longitude: -122.3321,
+          latitude: 47.6062
+        },
+        {
+          name: 'Dakota',
+          description: 'Strategic player, enjoys strategy-based card games.',
+          badge: 'Card Shark',
+          longitude: -157.8583,
+          latitude: 21.3069
+        },
+        {
+          name: 'Sawyer',
+          description: 'Casual player, loves hidden object games.',
+          badge: 'Hidden Object Hunter',
+          longitude: -149.9003,
+          latitude: 61.2181
+        },
+        {
+          name: 'Dylan',
+          description: 'Competitive player, enjoys battle royale games.',
+          badge: 'Battle Royale Champ',
+          longitude: -106.6056,
+          latitude: 35.0844
+        },
+        {
+          name: 'Hayden',
+          description: 'Relaxed player, prefers idle clicker games.',
+          badge: 'Idle Prodigy',
+          longitude: -95.3698,
+          latitude: 29.7604
+        },
+        {
+          name: 'Parker',
+          description: 'Intermediate player, loves city-building games.',
+          badge: 'City Planner',
+          longitude: -78.6382,
+          latitude: 35.7796
+        },
+        {
+          name: 'Avery',
+          description: 'Adventurous player, enjoys dungeon crawlers.',
+          badge: 'Dungeon Crawler',
+          longitude: -84.512,
+          latitude: 39.1031
+        },
+        {
+          name: 'Jules',
+          description: 'Beginner player, enjoys trivia and quiz games.',
+          badge: 'Trivia Buff',
+          longitude: -83.0458,
+          latitude: 42.3314
+        },
+        {
+          name: 'Kendall',
+          description: 'Casual player, loves relaxing match-3 games.',
+          badge: 'Match-3 Wizard',
+          longitude: -90.0715,
+          latitude: 29.9511
+        },
+        {
+          name: 'Devon',
+          description: 'Competitive player, enjoys MOBA games.',
+          badge: 'MOBA Master',
+          longitude: -157.8583,
+          latitude: 21.3069
+        },
+        {
+          name: 'Shawn',
+          description: 'Advanced player, loves roguelike games.',
+          badge: 'Rogue Specialist',
+          longitude: -149.9003,
+          latitude: 61.2181
+        },
+        {
+          name: 'Elliot',
+          description: 'Chill player, enjoys creative building games.',
+          badge: 'Builder Extraordinaire',
+          longitude: -106.6056,
+          latitude: 35.0844
+        },
+        {
+          name: 'Harper',
+          description: 'Social player, loves co-op games.',
+          badge: 'Co-op Champion',
+          longitude: -95.3698,
+          latitude: 29.7604
+        },
+        {
+          name: 'Aspen',
+          description: 'Casual player, enjoys chill puzzle games.',
+          badge: 'Puzzle Solver',
+          longitude: -98.4936,
+          latitude: 29.4241
+        },
+        {
+          name: 'Emerson',
+          description: 'Competitive player, loves trivia challenges.',
+          badge: 'Trivia Master',
+          longitude: -77.6109,
+          latitude: 43.1566
+        },
+        {
+          name: 'Charlie',
+          description: 'Intermediate player, enjoys cooperative adventures.',
+          badge: 'Team Adventurer',
+          longitude: -73.9352,
+          latitude: 40.7306
+        },
+        {
+          name: 'Payton',
+          description: 'Advanced player, excels at MMORPGs.',
+          badge: 'MMORPG Pro',
+          longitude: -79.9959,
+          latitude: 40.4406
+        },
+        {
+          name: 'Robin',
+          description: 'Beginner player, loves casual story-driven games.',
+          badge: 'Story Enthusiast',
+          longitude: -82.9988,
+          latitude: 39.9612
+        },
+        {
+          name: 'Arden',
+          description: 'Casual player, enjoys simulation strategy games.',
+          badge: 'Simulation Strategist',
+          longitude: -84.2807,
+          latitude: 30.4383
+        },
+        {
+          name: 'Dorian',
+          description: 'Competitive player, loves esports and tournaments.',
+          badge: 'Tournament Contender',
+          longitude: -76.6122,
+          latitude: 39.2904
+        },
+        {
+          name: 'Harley',
+          description: 'Advanced player, enjoys hardcore action games.',
+          badge: 'Action Expert',
+          longitude: -92.2896,
+          latitude: 34.7465
+        },
+        {
+          name: 'Lennox',
+          description: 'Chill player, prefers relaxing creative apps.',
+          badge: 'Creative Thinker',
+          longitude: -122.0838,
+          latitude: 37.3861
+        },
+        {
+          name: 'Blair',
+          description: 'Intermediate player, loves real-time strategy.',
+          badge: 'RTS Specialist',
+          longitude: -76.3054,
+          latitude: 36.8468
+        },
+        {
+          name: 'Taylor W.',
+          description: 'Casual player, enjoys retro platformers.',
+          badge: 'Retro Pro',
+          longitude: -75.887,
+          latitude: 41.2459
+        },
+        {
+          name: 'Finley',
+          description: 'Social player, thrives in team-based games.',
+          badge: 'Team Player',
+          longitude: -90.0489,
+          latitude: 35.1495
+        },
+        {
+          name: 'Sage',
+          description: 'Competitive player, enjoys FPS tournaments.',
+          badge: 'Marksman',
+          longitude: -86.1581,
+          latitude: 39.7684
+        },
+        {
+          name: 'Quincy',
+          description: 'Advanced player, excels at survival horror.',
+          badge: 'Horror Fanatic',
+          longitude: -80.8431,
+          latitude: 35.2271
+        },
+        {
+          name: 'Reagan',
+          description: 'Beginner player, enjoys calming music games.',
+          badge: 'Music Lover',
+          longitude: -96.7969,
+          latitude: 32.7767
+        },
+        {
+          name: 'Aria',
+          description: 'Casual player, loves matching games.',
+          badge: 'Matching Guru',
+          longitude: -121.4944,
+          latitude: 38.5816
+        },
+        {
+          name: 'Rowan M.',
+          description: 'Chill player, enjoys sandbox world-building.',
+          badge: 'World Builder',
+          longitude: -97.7431,
+          latitude: 30.2672
+        },
+        {
+          name: 'Lane',
+          description: 'Social player, loves casual multiplayer games.',
+          badge: 'Social Gamer',
+          longitude: -104.9903,
+          latitude: 39.7392
+        },
+        {
+          name: 'Ellis',
+          description: 'Competitive player, enjoys tactical RPGs.',
+          badge: 'Tactics Expert',
+          longitude: -122.6765,
+          latitude: 45.523
+        },
+        {
+          name: 'Dana',
+          description: 'Beginner player, enjoys educational games.',
+          badge: 'Knowledge Seeker',
+          longitude: -80.1918,
+          latitude: 25.7617
+        },
+        {
+          name: 'Sloan',
+          description: 'Advanced player, excels at speedrun challenges.',
+          badge: 'Speedrunner',
+          longitude: -71.0589,
+          latitude: 42.3601
+        },
+        {
+          name: 'Peyton',
+          description: 'Casual player, prefers atmospheric exploration games.',
+          badge: 'Explorer Enthusiast',
+          longitude: -81.3792,
+          latitude: 28.5383
+        },
+        {
+          name: 'Jordan C.',
+          description: 'Intermediate player, enjoys turn-based tactics.',
+          badge: 'Tactical Genius',
+          longitude: -106.6056,
+          latitude: 35.0844
+        },
+        {
+          name: 'Luca',
+          description: 'Competitive player, thrives in PvP games.',
+          badge: 'PvP Master',
+          longitude: -118.2437,
+          latitude: 34.0522
+        },
+        {
+          name: 'Sawyer K.',
+          description: 'Social player, loves party-based games.',
+          badge: 'Party Guru',
+          longitude: -122.4194,
+          latitude: 37.7749
+        },
+        {
+          name: 'Ellery',
+          description: 'Casual player, prefers brain-training apps.',
+          badge: 'Brainiac',
+          longitude: -77.0369,
+          latitude: 38.9072
+        },
+        {
+          name: 'Rory P.',
+          description: 'Chill player, enjoys minimalist puzzle games.',
+          badge: 'Minimalist',
+          longitude: -80.8431,
+          latitude: 35.2271
+        },
+        {
+          name: 'Parker J.',
+          description: 'Competitive player, loves sports simulators.',
+          badge: 'Sports Pro',
+          longitude: -87.6298,
+          latitude: 41.8781
+        },
+        {
+          name: 'Jess',
+          description: 'Advanced player, thrives in roguelike dungeons.',
+          badge: 'Dungeon Master',
+          longitude: -93.265,
+          latitude: 44.9778
+        },
+        {
+          name: 'Auden',
+          description: 'Social player, loves sharing co-op missions.',
+          badge: 'Mission Specialist',
+          longitude: -122.3321,
+          latitude: 47.6062
+        }
+      ]
+
+      async function findPair() {
+        const userDescription = document
+          .getElementById('description')
+          .value.trim()
+        const sentences = [
+          userDescription,
+          ...profiles.map(profile => profile.description)
+        ]
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${API_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: {
+              source_sentence: sentences[0],
+              sentences: sentences.slice(1)
+            }
+          })
+        })
+
+        const scores = await response.json()
+        const detailedScores = scores.map((score, index) => ({
+          ...profiles[index],
+          score: parseFloat(score).toFixed(2)
+        }))
+
+        const topMatches = detailedScores
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3)
+
+        document.getElementById('result').innerHTML = `
+            <p>Your description: <strong>${userDescription}</strong></p>
+            <p>Top Matches:</p>
+            <ul>
+              ${topMatches
+                .map(
+                  match => `
+                  <li>
+                    <strong>${match.name}</strong>: ${match.description} 
+                    (${(match.score * 100).toFixed(2)}%)
+                    <div class="badge-button-container">
+                      <span class="badge ${match.badge.toLowerCase()}">
+                        ${match.badge} 🏆
+                      </span>
+                      <button onclick="earnBadge('${match.name}', '${
+                    match.badge
+                  }')">
+                        Pick This Match
+                      </button>
+                    </div>
+                    <div class="rating disabled" data-name="${match.name}">
+                      <div class="star" onclick="rateMatch('${
+                        match.name
+                      }', 1)"></div>
+                      <div class="star" onclick="rateMatch('${
+                        match.name
+                      }', 2)"></div>
+                      <div class="star" onclick="rateMatch('${
+                        match.name
+                      }', 3)"></div>
+                      <div class="star" onclick="rateMatch('${
+                        match.name
+                      }', 4)"></div>
+                      <div class="star" onclick="rateMatch('${
+                        match.name
+                      }', 5)"></div>
+                    </div>
+                  </li>
+                `
+                )
+                .join('')}
+            </ul>
+          `
+
+        document.getElementById('result').style.display = 'block'
+        document.getElementById('overlay-message').style.display = 'none'
+        updateMap(topMatches)
+      }
+
+      const ratings = {}
+
+      function earnBadge(name, badge) {
+        const popupMessage = document.getElementById('popup-message')
+        if (!popupMessage) {
+          console.error('Popup message element not found!')
+          return
+        }
+        popupMessage.innerText = `Beat ${name} to win the "${badge}" badge. You can now rate this match!`
+        document.getElementById('overlay').classList.add('show')
+        document.getElementById('popup').classList.add('show')
+
+        // Enable the rating for the selected match
+        const ratingElement = document.querySelector(
+          `.rating[data-name="${name}"]`
+        )
+        if (ratingElement) {
+          ratingElement.classList.remove('disabled')
+        }
+      }
+
+      function rateMatch(name, stars) {
+        // Check if the rating is enabled
+        const ratingElement = document.querySelector(
+          `.rating[data-name="${name}"]`
+        )
+        if (ratingElement && ratingElement.classList.contains('disabled')) {
+          console.warn('Rating is disabled for this match.')
+          return
+        }
+
+        ratings[name] = stars
+
+        const starElements = document.querySelectorAll(
+          `.rating[data-name="${name}"] .star`
+        )
+
+        starElements.forEach((star, index) => {
+          if (index < stars) {
+            star.classList.add('filled')
+          } else {
+            star.classList.remove('filled')
+          }
+        })
+
+        const popupMessage = document.getElementById('popup-message')
+        if (!popupMessage) {
+          console.error('Popup message element not found!')
+          return
+        }
+
+        popupMessage.innerText = `Thanks for rating ${name} ${stars} stars! We will use this to better match you in the future.`
+        document.getElementById('overlay').classList.add('show')
+        document.getElementById('popup').classList.add('show')
+      }
+
+      function updateMap(matches) {
+        require(['esri/Map', 'esri/views/MapView', 'esri/Graphic'], function (
+          Map,
+          MapView,
+          Graphic
+        ) {
+          if (!map) {
+            map = new Map({
+              basemap: 'streets-navigation-vector'
+            })
+            view = new MapView({
+              container: 'map',
+              map: map,
+              center: [-100, 35],
+              zoom: 2
+            })
+          }
+
+          view.graphics.removeAll()
+
+          matches.forEach((match, index) => {
+            const point = {
+              type: 'point',
+              longitude: match.longitude,
+              latitude: match.latitude
+            }
+
+            const graphic = new Graphic({
+              geometry: point,
+              symbol: {
+                type: 'simple-marker',
+                color: 'blue'
+              },
+              popupTemplate: {
+                title: `${match.name}`,
+                content: `
+            <p>${match.description}</p>
+            <p><strong>Badge:</strong> ${match.badge}</p>
+            <p><strong>Location:</strong> (${match.latitude.toFixed(
+              2
+            )}, ${match.longitude.toFixed(2)})</p>
+          `
+              }
+            })
+
+            view.graphics.add(graphic)
+
+            // Add click event to highlight corresponding match
+            graphic.popupTemplate.actions = [
+              {
+                id: `highlight-${index}`,
+                title: 'Highlight in Matches',
+                className: 'esri-icon-edit'
+              }
+            ]
+
+            view.on('click', event => {
+              view.hitTest(event).then(response => {
+                if (response.results.length) {
+                  const clickedGraphic = response.results[0].graphic
+                  if (clickedGraphic && clickedGraphic.attributes) {
+                    highlightMatch(clickedGraphic.attributes.matchIndex)
+                  }
+                }
+              })
+            })
+
+            // Attach match index to the graphic for reference
+            graphic.attributes = { matchIndex: index }
+          })
+        })
+      }
+
+      function highlightMatch(index) {
+        // Remove highlight from all matches
+        const allMatches = document.querySelectorAll('#result ul li')
+        allMatches.forEach(match => match.classList.remove('highlighted'))
+
+        // Highlight the selected match
+        const matchToHighlight = allMatches[index]
+        if (matchToHighlight) {
+          matchToHighlight.classList.add('highlighted')
+          matchToHighlight.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          })
+        }
+      }
+
+      function closePopup() {
+        const overlay = document.getElementById('overlay')
+        const popup = document.getElementById('popup')
+        overlay.classList.remove('show')
+        popup.classList.remove('show')
+      }
+
+      function toggleFooter() {
+        const footerContent = document.getElementById('footer-content')
+        const toggleButton = document.getElementById('toggle-footer')
+
+        if (footerContent.classList.contains('hidden')) {
+          footerContent.classList.remove('hidden')
+          footerContent.classList.add('visible')
+          toggleButton.innerText = 'Hide Details'
+        } else {
+          footerContent.classList.remove('visible')
+          footerContent.classList.add('hidden')
+          toggleButton.innerText = 'Show Details'
+        }
+      }
+    </script>
+  </body>
+</html>
