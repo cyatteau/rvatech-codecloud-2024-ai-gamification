@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-Powered Quiz</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <h1>AI-Powered Quiz</h1>
+      <div id="question-container">
+        <p id="question">Press "Start" to begin the quiz!</p>
+        <div id="answer-container">
+          <input id="answer" type="text" placeholder="Type your answer here" />
+          <button id="submit-btn">Submit</button>
+        </div>
+      </div>
+      <div id="feedback"></div>
+      <button id="start-btn">Start</button>
+      <div id="difficulty">
+        Current Difficulty: <span id="difficulty-level">Easy</span>
+      </div>
+      <div id="probabilities">
+        Predictions: <span id="raw-probabilities">[N/A]</span>
+      </div>
+      <div id="training-status"></div>
+      <div id="loss-chart"></div>
+    </div>
+    <script>
+      // Step 1: Initialize the AI Model - seq (layers added one at a time)
+      const model = tf.sequential()
+
+      // Step 2: Add Layers
+      model.add(
+        tf.layers.dense({ units: 20, activation: 'relu', inputShape: [3] })
+      )
+      model.add(tf.layers.dense({ units: 3, activation: 'softmax' }))
+
+      // Step 3: Compile the Model
+      model.compile({ optimizer: 'adam', loss: 'meanSquaredError' }) //TEST LOSS: categoricalCrossentropy
+
+      // Step 4: Define Training Data
+      const trainX = tf.tensor2d([
+        // Input data: Represents correctness (binary), response time, and initial difficulty level for training.
+        [1, 2.0, 0], // Correct, 2 seconds response time, Easy level
+        [1, 3.5, 0], // Correct, 3.5 seconds response time, Easy level
+        [0, 6.0, 0], // Incorrect, 6 seconds response time, Easy level
+        [1, 1.5, 1], // Correct, 1.5 seconds response time, Medium level
+        [0, 4.0, 1], // Incorrect, 4 seconds response time, Medium level
+        [1, 3.0, 2], // Correct, 3 seconds response time, Hard level
+        [0, 7.0, 2] // Incorrect, 7 seconds response time, Hard level
+      ])
+
+      const trainY = tf.tensor2d([
+        [0, 1, 0], // Medium
+        [0, 1, 0], // Medium
+        [1, 0, 0], // Easy
+        [0, 0, 1], // Hard
+        [1, 0, 0], // Easy
+        [0, 0, 1], // Hard
+        [0, 1, 0] // Medium
+      ])
+
+      let modelTrained = false
+      let startClicked = false
+      const trainingStatusEl = document.getElementById('training-status')
+      const lossChartEl = document.getElementById('loss-chart')
+
+      // Train the Model
+      async function trainModel() {
+        trainingStatusEl.textContent = 'Training in progress...'
+        lossChartEl.innerHTML = '<span>Epoch: 0 | Loss: 0.0000</span>'
+
+        await model.fit(trainX, trainY, {
+          epochs: 300, //TEST other values
+          callbacks: {
+            onEpochEnd: (epoch, logs) => {
+              const epochDisplay = `Epoch (Training Round): ${
+                epoch + 1
+              }| Loss (Error Rate): ${logs.loss.toFixed(4)}`
+              lossChartEl.innerHTML = `<span>${epochDisplay}</span>`
+              console.log(epochDisplay)
+            }
+          }
+        })
+
+        modelTrained = true
+        console.log('Model training complete')
+        trainingStatusEl.textContent = 'Training complete! Model is ready.'
+        if (startClicked) {
+          startQuiz()
+        }
+      }
+      trainModel()
+
+      // Predefined questions
+      const questions = {
+        easy: [
+          { question: 'What is 5 + 3?', answer: '8' },
+          { question: 'What is the capital of Italy?', answer: 'Rome' },
+          { question: 'What color is a banana?', answer: 'yellow' }
+        ],
+        medium: [
+          { question: 'What is 15 x 6?', answer: '90' },
+          {
+            question: "Who wrote 'To Kill a Mockingbird'?",
+            answer: 'Harper Lee'
+          },
+          {
+            question: 'What is the boiling point of water in Celsius?',
+            answer: '100'
+          }
+        ],
+        hard: [
+          { question: 'What is the chemical symbol for gold?', answer: 'Au' },
+          { question: 'What year did World War II end?', answer: '1945' },
+          {
+            question: 'Who painted the Mona Lisa?',
+            answer: 'Leonardo da Vinci'
+          }
+        ]
+      }
+
+      let currentDifficulty = 0
+      let startTime
+      let currentQuestion
+
+      function startQuiz() {
+        document.getElementById('question-container').style.display = 'block' // Show question container
+        document.getElementById('start-btn').style.display = 'none' // Hide start button
+        document.getElementById('feedback').textContent = '' // Clear feedback
+        nextQuestion() // Start the quiz
+      }
+
+      document.getElementById('start-btn').addEventListener('click', () => {
+        startClicked = true
+        if (!modelTrained) {
+          trainingStatusEl.textContent = 'Please wait, training the AI model...'
+          return
+        }
+        startQuiz()
+      })
+
+      document.getElementById('submit-btn').addEventListener('click', () => {
+        if (!modelTrained) {
+          trainingStatusEl.textContent =
+            'AI model is still training. Please wait...'
+          return
+        }
+
+        const answer = document.getElementById('answer').value.trim()
+        const correct =
+          answer.toLowerCase() === currentQuestion.answer.toLowerCase()
+        const responseTime = (Date.now() - startTime) / 1000
+
+        // Predict probabilities
+        const input = tf.tensor2d([
+          [correct ? 1 : 0, responseTime, currentDifficulty]
+        ])
+        const prediction = model.predict(input)
+        const probabilities = Array.from(prediction.dataSync())
+        currentDifficulty = prediction.argMax(-1).dataSync()[0]
+
+        // Update feedback and difficulty
+        document.getElementById('feedback').textContent = correct
+          ? 'Correct! 🎉'
+          : `Incorrect, but keep trying! The correct answer was ${currentQuestion.answer}.`
+        document.getElementById('difficulty-level').textContent = [
+          'Easy',
+          'Medium',
+          'Hard'
+        ][currentDifficulty]
+
+        // Display raw probabilities
+        document.getElementById(
+          'raw-probabilities'
+        ).textContent = `[Easy: ${probabilities[0].toFixed(
+          2
+        )}, Medium: ${probabilities[1].toFixed(
+          2
+        )}, Hard: ${probabilities[2].toFixed(2)}]`
+
+        // Load the next question after a short delay
+        setTimeout(nextQuestion, 3000)
+      })
+
+      function nextQuestion() {
+        const level = ['easy', 'medium', 'hard'][currentDifficulty]
+        currentQuestion =
+          questions[level][Math.floor(Math.random() * questions[level].length)]
+        document.getElementById('question').textContent =
+          currentQuestion.question
+        document.getElementById('answer').value = ''
+        document.getElementById('feedback').textContent = ''
+        startTime = Date.now()
+      }
+    </script>
+  </body>
+</html>
